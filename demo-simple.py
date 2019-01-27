@@ -38,8 +38,6 @@ SWEEP_COUNT = 100
 # Cable delays are 0.65 nanoseconds each way (tx cable + rx cable)
 CABLE_DELAYS = 0.65 * 2
 
-FILE_PATH_PREFIX = r'./'
-
 
 def log_mag(inarr):
     return 20 * np.log10(np.absolute(inarr))
@@ -290,14 +288,14 @@ def run():
 
     dirname = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    os.makedirs(os.path.join(FILE_PATH_PREFIX, dirname), exist_ok=True)
+    os.makedirs(os.path.join(os.path.dirname(__file__), dirname), exist_ok=True)
 
-    with open(os.path.join(FILE_PATH_PREFIX, dirname, 'raw.txt'), 'a+', encoding='utf-8') as f:
+    with open(os.path.join(os.path.dirname(__file__), dirname, 'raw.txt'), 'a+', encoding='utf-8') as f:
         f.write(str(frequencies) + os.linesep)
         f.write(str(sweeps) + os.linesep)
         f.write(str(time_per_frame))
 
-    with open(os.path.join(FILE_PATH_PREFIX, dirname, 'data.csv'), 'w+', encoding='utf-8') as f:
+    with open(os.path.join(os.path.dirname(__file__), dirname, 'data.csv'), 'w+', encoding='utf-8') as f:
         writer = csv.writer(f)
         for row in sweeps:
             data = row[0][1]['data']
