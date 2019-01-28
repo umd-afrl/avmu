@@ -1,4 +1,4 @@
-import csv
+import pickle
 import os
 import time
 from datetime import datetime
@@ -288,20 +288,17 @@ def run():
 
     dirname = datetime.now().strftime("%Y-%m-%d %H-%M-%S")
 
-    os.makedirs(os.path.join(os.path.dirname(__file__), dirname), exist_ok=True)
+    os.makedirs(os.path.join(os.getcwd(), dirname), exist_ok=True)
 
-    with open(os.path.join(os.path.dirname(__file__), dirname, 'raw.txt'), 'a+', encoding='utf-8') as f:
-        f.write(str(frequencies) + os.linesep)
-        f.write(str(sweeps) + os.linesep)
+    with open(os.path.join(os.getcwd(), dirname, 'raw.txt'), 'a+', encoding='utf-8') as f:
+        f.write(str(frequencies) + os.linesep + os.linesep)
+        f.write(str(sweeps) + os.linesep + os.linesep)
         f.write(str(time_per_frame))
 
-    with open(os.path.join(os.path.dirname(__file__), dirname, 'data.csv'), 'w+', encoding='utf-8') as f:
-        writer = csv.writer(f)
-        for row in sweeps:
-            data = row[0][1]['data']
-            meta = row[0][1]['meta']
-            writer.writerow([data, meta])
-
+    with open(os.path.join(os.getcwd(), dirname, 'data.pickle'), 'wb') as f:
+        pickle.dump(frequencies, f)
+        pickle.dump(sweeps, f)
+        pickle.dump(time_per_frame, f)
     # plot_sweeps(frequencies, sweeps, time_per_frame)
 
 
