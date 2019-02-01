@@ -332,6 +332,6 @@ if __name__ == '__main__':
     STOP_F = args.stop_f
 
     NUM_POINTS = args.points_count
-    SWEEP_COUNT = SWEEP_COUNT
+    SWEEP_COUNT = args.SWEEP_COUNT
 
     run(args)
