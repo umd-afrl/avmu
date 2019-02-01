@@ -281,7 +281,7 @@ def get_sweeps(count):
     return frequencies, sweeps, time_per_frame
 
 
-def run():
+def run(args):
     print("Running minimal demo!")
 
     frequencies, sweeps, time_per_frame = get_sweeps(SWEEP_COUNT)
@@ -299,7 +299,7 @@ def run():
         pickle.dump(frequencies, f)
         pickle.dump(sweeps, f)
         pickle.dump(time_per_frame, f)
-        pickle.dump(args)
+        pickle.dump(args, f)
     # plot_sweeps(frequencies, sweeps, time_per_frame)
 
 
@@ -334,4 +334,4 @@ if __name__ == '__main__':
     NUM_POINTS = args.points_count
     SWEEP_COUNT = SWEEP_COUNT
 
-    run()
+    run(args)
