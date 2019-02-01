@@ -1,5 +1,5 @@
-import pickle
 import os
+import pickle
 import time
 from datetime import datetime
 
@@ -299,12 +299,39 @@ def run():
         pickle.dump(frequencies, f)
         pickle.dump(sweeps, f)
         pickle.dump(time_per_frame, f)
+        pickle.dump(args)
     # plot_sweeps(frequencies, sweeps, time_per_frame)
 
 
 if __name__ == '__main__':
     import logging
+    import argparse
 
-logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.INFO)
 
-run()
+    parser = argparse.ArgumentParser(description='Capture data from the AVMU ultra-wideband radar.')
+    parser.add_argument('--start_f', type=int, default=250, help='Sweep start frequency in MHz')
+    parser.add_argument('--stop_f', type=int, default=2100, help='Sweep stop frequency in MHz')
+    parser.add_argument('-ip', default='192.168.1.219', help='IP address of the AVMU')
+    parser.add_argument('-p', '--points-count', type=int, default=1024,
+                        help='Number of frequencies to sample in sweep range')
+    parser.add_argument('-hr', '--hop-rate',
+                        default='HOP_15K',
+                        choices=['HOP_90K', 'HOP_45K', 'HOP_30K', 'HOP_15K', 'HOP_7K', 'HOP_3K', 'HOP_2K', 'HOP_1K',
+                                 'HOP_550', 'HOP_312', 'HOP_156', 'HOP_78', 'HOP_39', 'HOP_20'],
+                        help='Settings for the hop-rate (e.g. time spent sampling each frequency point) in a sweep')
+    parser.add_argument('SWEEP-COUNT', type=int, default=100, help='Number of sweeps to acquire')
+    parser.add_argument('NOTES', help='Text to be saved with capture parameters and data')
+
+    args = parser.parse_args()
+
+    AVMU_IP_ADDRESS = "192.168.1.219"
+
+    HOP_RATE = args.hop_rate
+    START_F = args.start_f
+    STOP_F = args.stop_f
+
+    NUM_POINTS = args.points_count
+    SWEEP_COUNT = SWEEP_COUNT
+
+    run()
