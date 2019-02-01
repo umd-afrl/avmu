@@ -320,7 +320,7 @@ if __name__ == '__main__':
                         choices=['HOP_90K', 'HOP_45K', 'HOP_30K', 'HOP_15K', 'HOP_7K', 'HOP_3K', 'HOP_2K', 'HOP_1K',
                                  'HOP_550', 'HOP_312', 'HOP_156', 'HOP_78', 'HOP_39', 'HOP_20'],
                         help='Settings for the hop-rate (e.g. time spent sampling each frequency point) in a sweep')
-    parser.add_argument('SWEEP-COUNT', type=int, default=100, help='Number of sweeps to acquire')
+    parser.add_argument('SWEEP_COUNT', type=int, default=100, help='Number of sweeps to acquire')
     parser.add_argument('NOTES', help='Text to be saved with capture parameters and data')
 
     args = parser.parse_args()
@@ -332,6 +332,6 @@ if __name__ == '__main__':
     STOP_F = args.stop_f
 
     NUM_POINTS = args.points_count
-    SWEEP_COUNT = args.SWEEP-COUNT
+    SWEEP_COUNT = args.SWEEP_COUNT
 
     run(args)
