@@ -38,6 +38,8 @@ SWEEP_COUNT = 100
 # Cable delays are 0.65 nanoseconds each way (tx cable + rx cable)
 CABLE_DELAYS = 0.65 * 2
 
+current_plot = None
+
 
 def log_mag(inarr):
     return 20 * np.log10(np.absolute(inarr))
@@ -166,6 +168,7 @@ def waterfall_plot(y_axis_set, x_axis, time_per_frame):
 
 
 def plot_sweeps(frequencies, sweeps_set, time_per_frame):
+    global current_plot
     # Messily unpack the sweep data structure.
     # There are a unch of assumptions here, mostly based around the fact that
     # we're only ever acquiring one path.
@@ -218,9 +221,14 @@ def plot_sweeps(frequencies, sweeps_set, time_per_frame):
     plt.legend()
 
     waterfall_plot(fft_mag, fft_time_axis, time_per_frame)
+    current_plot = plt
 
-    plt.show()
 
+def get_current_plot():
+    global current_plot
+    frequencies, sweeps, time_per_frame = get_sweeps(SWEEP_COUNT)
+    plot_sweeps(frequencies, sweeps, time_per_frame)
+    return current_plot
 
 def get_sweeps(count):
     '''
@@ -282,25 +290,26 @@ def get_sweeps(count):
 
 
 def run(args):
-    print("Running minimal demo!")
+    # print("Running minimal demo!")
 
     frequencies, sweeps, time_per_frame = get_sweeps(SWEEP_COUNT)
-
-    dirname = datetime.now().strftime("%Y-%m-%d %H-%M-%S")
-
-    os.makedirs(os.path.join(os.getcwd(), dirname), exist_ok=True)
-
-    with open(os.path.join(os.getcwd(), dirname, 'raw.txt'), 'a+', encoding='utf-8') as f:
-        f.write(str(frequencies) + os.linesep + os.linesep)
-        f.write(str(sweeps) + os.linesep + os.linesep)
-        f.write(str(time_per_frame))
-
-    with open(os.path.join(os.getcwd(), dirname, 'data.pickle'), 'wb') as f:
-        pickle.dump(frequencies, f)
-        pickle.dump(sweeps, f)
-        pickle.dump(time_per_frame, f)
-        pickle.dump(args, f)
-    # plot_sweeps(frequencies, sweeps, time_per_frame)
+    plot_sweeps(frequencies, sweeps, time_per_frame)
+    #
+    # dirname = datetime.now().strftime("%Y-%m-%d %H-%M-%S")
+    #
+    # os.makedirs(os.path.join(os.getcwd(), dirname), exist_ok=True)
+    #
+    # with open(os.path.join(os.getcwd(), dirname, 'raw.txt'), 'a+', encoding='utf-8') as f:
+    #     f.write(str(frequencies) + os.linesep + os.linesep)
+    #     f.write(str(sweeps) + os.linesep + os.linesep)
+    #     f.write(str(time_per_frame))
+    #
+    # with open(os.path.join(os.getcwd(), dirname, 'data.pickle'), 'wb') as f:
+    #     pickle.dump(frequencies, f)
+    #     pickle.dump(sweeps, f)
+    #     pickle.dump(time_per_frame, f)
+    #     pickle.dump(args, f)
+    plot_sweeps(frequencies, sweeps, time_per_frame)
 
 
 if __name__ == '__main__':
