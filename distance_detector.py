@@ -26,9 +26,7 @@ class AvmuCapture:
         self.stop_f = stop_f
         self.avmu_ip = avmu_ip
 
-        self.prev_sweep = None
-        self.prev_frequencies = None
-        self.prev_time_per_frame = None
+        self.prev_padded_data = None
 
     def initialize(self):
         self.device.setIPAddress(self.avmu_ip)
@@ -47,23 +45,24 @@ class AvmuCapture:
     def create_frame(self):
         global prev_sweep
         frequencies = self.device.getFrequencies()
-        print(frequencies)
         self.device.start()
         self.device.beginAsync()
 
         #await
         self.device.measure()
-        sweep = self.device.extractAllPaths()
+        sweeps = [self.device.extractAllPaths()]
         self.device.haltAsync()
         time_per_frame = self.device.getPreciseTimePerFrame()
 
-        sweep = np.multiply(sweep[0][1]['data'], np.hanning(len(sweep)))
+        sweeps = [np.multiply(tmp[0][1]['data'], np.hanning(len(sweeps[0]))) for tmp in sweeps]
 
-        if self.prev_sweep is not None:
-            step = abs(frequencies[0] - self.prev_frequencies[-1]) / len(frequencies)
-            front_padding_count = max(int(frequencies[0] / step), 0)
+        step = abs(frequencies[0] - frequencies[-1]) / len(frequencies)
+        front_padding_count = max(int(frequencies[0] / step), 0)
 
-            data_pt = sweep
+        time_domain_data = []
+
+        for i in range(len(sweeps)):
+            data_pt = sweeps[i]
 
             padded_data = []
 
@@ -74,19 +73,46 @@ class AvmuCapture:
             powers_of_two = [2 ** x for x in range(16)]
 
             for size in powers_of_two:
-                if(size > len(padded_data)):
+                if size > len(padded_data):
                     final_size = size
                     break
+
             while len(padded_data) < final_size:
                 padded_data.append(0)
+
             padded_data = np.array(padded_data)
+
+        if self.prev_sweep is not None:
+
+            time_domain_data.append(np.fft.ifft(padded_data))
+            time_domain_data = np.array(time_domain_data)
+            axis = np.array(range(time_domain_data.shape[1]))
+
+            step = step * 1e6  # Hertz
+            axis = axis * (1 / (len(axis) * step * 2))  # Hertz to seconds
+            axis = axis * 1e9  # Nanoseconds
+            axis = axis - CABLE_DELAYS
+            axis = axis * 0.983571  # Nanoseconds to feet
+            axis = axis * .5
+
+            diff_ccd = np.zeros(time_domain_data.shape)
+
+            for s in range(time_domain_data.shape[0]):
+                diff_ccd[s] = np.abs(time_domain_data[s] - time_domain_data[s - 1])
+
+            diff_ccd = np.power(diff_ccd, (1 / 3))
+
+            p = figure(x_range=(0, diff_ccd.shape[0]), y_range=(0, diff_ccd.shape[1]), plot_width=1000, plot_height=600)
+            p.image(image=[diff_ccd], x=0, y=0, dw=diff_ccd.shape[0], dh=diff_ccd.shape[1], palette=colorcet.fire)
+            show(p)
 
 
         else:
-            prev_sweep = sweep
+            self.prev_padded_data = padded_data
 
         self.device.stop()
 
 cap = AvmuCapture()
 cap.initialize()
+cap.create_frame()
 cap.create_frame()
