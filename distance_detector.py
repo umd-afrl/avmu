@@ -2,21 +2,16 @@ import numpy as np
 from bokeh.io import push_notebook, output_notebook
 from bokeh.plotting import *
 from bokeh.models import LogColorMapper
-from IPython.display import display
-import ipywidgets as widgets
 import os
 import pickle
 import imageio
+from threading import Thread, Lock, Event
 import colorcet
 import avmu
 
 CABLE_DELAYS = 0.65 * 2
 SWEEP_COUNT = 2
 AVMU_IP_ADDRESS = "192.168.1.219"
-# DATA_DIRS = [dI for dI in os.listdir() if (os.path.isdir(dI) and not dI[0] == '.')]
-# DATA_DIRS.sort(reverse=True)
-# FOLDER_NAME = DATA_DIRS[4]
-# print(FOLDER_NAME)
 
 class AvmuCapture:
     def __init__(self, hop_rate='HOP_15K', points=1024, start_f=250, stop_f=2100, avmu_ip='192.168.1.219'):
@@ -26,7 +21,9 @@ class AvmuCapture:
         self.start_f = start_f
         self.stop_f = stop_f
         self.avmu_ip = avmu_ip
-        self.prev_sweep_data = None
+        self.prev_sweep_data = []
+        self.prev_sweep_data_lock = Lock()
+        self.sweep_data_generated_event = Event()
 
     def initialize(self):
         self.device.setIPAddress(self.avmu_ip)
@@ -42,69 +39,73 @@ class AvmuCapture:
         self.device.utilGenerateLinearSweep(startF_mhz=self.start_f, stopF_mhz=self.stop_f, points=self.points)
 
     def capture(self):
-        frequencies = self.device.getFrequencies()
-        self.device.start()
-        self.device.beginAsync()
-        self.device.measure()
-        sweeps = [self.device.extractAllPaths()]
-        self.device.haltAsync()
-        self.device.stop()
+        while True:
+            frequencies = self.device.getFrequencies()
+            self.device.start()
+            self.device.beginAsync()
+            self.device.measure()
+            sweeps = [self.device.extractAllPaths()]
+            self.device.haltAsync()
+            self.device.stop()
+            sweeps = [np.multiply(tmp[0][1]['data'], np.hanning(len(sweeps[0]))) for tmp in sweeps]
+            step = abs(frequencies[0] - frequencies[-1]) / len(frequencies)
+            front_padding_count = max(int(frequencies[0] / step), 0)
+            for i in range(len(sweeps)):
+                data_pt = sweeps[i]
 
-        return sweeps, frequencies
+                padded_data = []
 
-    def generate_frame(self):
-        sweeps, frequencies = self.capture()
-        sweeps = [np.multiply(tmp[0][1]['data'], np.hanning(len(sweeps[0]))) for tmp in sweeps]
-        step = abs(frequencies[0] - frequencies[-1]) / len(frequencies)
-        front_padding_count = max(int(frequencies[0] / step), 0)
-        time_domain_data = []
-        for i in range(len(sweeps)):
-            data_pt = sweeps[i]
+                while len(padded_data) < front_padding_count:
+                    padded_data.append(0)
+                padded_data.extend(data_pt)
 
-            padded_data = []
+                powers_of_two = [2 ** x for x in range(16)]
 
-            while len(padded_data) < front_padding_count:
-                padded_data.append(0)
-            padded_data.extend(data_pt)
+                for size in powers_of_two:
+                    if size > len(padded_data):
+                        final_size = size
+                        break
 
-            powers_of_two = [2 ** x for x in range(16)]
+                while len(padded_data) < final_size:
+                    padded_data.append(0)
 
-            for size in powers_of_two:
-                if (size > len(padded_data)):
-                    final_size = size
-                    break
+                padded_data = np.array(padded_data)
+                self.prev_sweep_data_lock.acquire()
+                if len(self.prev_sweep_data) < 2:
+                    self.prev_sweep_data.append(np.fft.ifft(padded_data))
+                    self.sweep_data_generated_event.set()
+                self.prev_sweep_data_lock.release()
 
-            while len(padded_data) < final_size:
-                padded_data.append(0)
+    def generate_image(self):
+        while True:
+            self.prev_sweep_data_lock.acquire()
+            time_domain_data = np.array(self.prev_sweep_data)
+            self.prev_sweep_data.pop(0)
+            self.prev_sweep_data_lock.release()
+            if len(time_domain_data) != 2:
+                return
+            axis = np.array(range(time_domain_data.shape[1]))
+            #
+            # step = step * 1e6  # Hertz
+            # axis = axis * (1 / (len(axis) * step * 2))  # Hertz to seconds
+            # axis = axis * 1e9  # Nanoseconds
+            # axis = axis - CABLE_DELAYS
+            # axis = axis * 0.983571  # Nanoseconds to feet
+            # axis = axis * .5
 
-            padded_data = np.array(padded_data)
-            if self.prev_sweep_data == None:
-                self.prev_sweep_data == np.fft.ifft(padded_data)
-            time_domain_data.append(np.fft.ifft(padded_data))
+            diff_ccd = np.zeros(time_domain_data.shape)
 
-        time_domain_data = np.array(time_domain_data)
-        axis = np.array(range(time_domain_data.shape[1]))
+            for s in range(time_domain_data.shape[0]):
+                diff_ccd[s] = np.abs(time_domain_data[s] - time_domain_data[s - 1])
 
-        step = step * 1e6  # Hertz
-        axis = axis * (1 / (len(axis) * step * 2))  # Hertz to seconds
-        axis = axis * 1e9  # Nanoseconds
-        axis = axis - CABLE_DELAYS
-        axis = axis * 0.983571  # Nanoseconds to feet
-        axis = axis * .5
+            diff_ccd = np.power(diff_ccd, (1 / 3))
 
-        diff_ccd = np.zeros(time_domain_data.shape)
-
-        for s in range(time_domain_data.shape[0]):
-            diff_ccd[s] = np.abs(time_domain_data[s] - self.prev_sweep_data)
-
-        diff_ccd = np.power(diff_ccd, (1 / 3))
-
-        p = figure(x_range=(0, diff_ccd.shape[0]), y_range=(0, diff_ccd.shape[1]), plot_width=1000, plot_height=600)
-        p.image(image=[diff_ccd], x=0, y=0, dw=diff_ccd.shape[0], dh=diff_ccd.shape[1], palette=colorcet.fire)
-        show(p)
-
+            p = figure(x_range=(0, diff_ccd.shape[0]), y_range=(0, diff_ccd.shape[1]), plot_width=1000, plot_height=600)
+            p.image(image=[diff_ccd], x=0, y=0, dw=diff_ccd.shape[0], dh=diff_ccd.shape[1], palette=colorcet.fire)
+            show(p)
 cap = AvmuCapture()
 cap.initialize()
-cap.generate_frame()
-cap.generate_frame()
-cap.generate_frame()
+producerThread = Thread(target=cap.capture())
+consumerThread = Thread(target=cap.generate_image())
+producerThread.join()
+consumerThread.join()
