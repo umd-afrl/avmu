@@ -1,12 +1,15 @@
 import numpy as np
-from bokeh.io import push_notebook, output_notebook
+from bokeh.io import push_notebook, output_notebook, export_png
+import matplotlib.pyplot as plt
 from bokeh.plotting import *
 from bokeh.models import LogColorMapper
 import os
 import pickle
 import imageio
+import PIL
+from PIL import Image
 from threading import Thread, Lock, Event
-import colorcet
+#import colorcet
 import avmu
 
 CABLE_DELAYS = 0.65 * 2
@@ -72,19 +75,22 @@ class AvmuCapture:
                 padded_data = np.array(padded_data)
                 self.prev_sweep_data_lock.acquire()
                 if len(self.prev_sweep_data) < 2:
+                    print("HERE")
                     self.prev_sweep_data.append(np.fft.ifft(padded_data))
-                    self.sweep_data_generated_event.set()
+                else:
+                    self.prev_sweep_data_lock.release()
+                    self.sweep_data_generated_event.wait()
+                    self.sweep_data_generated_event.clear()
                 self.prev_sweep_data_lock.release()
 
     def generate_image(self):
         while True:
             self.prev_sweep_data_lock.acquire()
-            time_domain_data = np.array(self.prev_sweep_data)
-            self.prev_sweep_data.pop(0)
-            self.prev_sweep_data_lock.release()
-            if len(time_domain_data) != 2:
-                return
-            axis = np.array(range(time_domain_data.shape[1]))
+            if len(self.prev_sweep_data) == 2:
+                time_domain_data = np.array(self.prev_sweep_data)
+                self.prev_sweep_data.pop(0)
+                self.sweep_data_generated_event.set()
+                axis = np.array(range(time_domain_data.shape[1]))
             #
             # step = step * 1e6  # Hertz
             # axis = axis * (1 / (len(axis) * step * 2))  # Hertz to seconds
@@ -93,19 +99,24 @@ class AvmuCapture:
             # axis = axis * 0.983571  # Nanoseconds to feet
             # axis = axis * .5
 
-            diff_ccd = np.zeros(time_domain_data.shape)
+                diff_ccd = np.zeros(time_domain_data.shape)
 
-            for s in range(time_domain_data.shape[0]):
-                diff_ccd[s] = np.abs(time_domain_data[s] - time_domain_data[s - 1])
+                for s in range(time_domain_data.shape[0]):
+                    diff_ccd[s] = np.abs(time_domain_data[s] - time_domain_data[s - 1])
 
-            diff_ccd = np.power(diff_ccd, (1 / 3))
-
-            p = figure(x_range=(0, diff_ccd.shape[0]), y_range=(0, diff_ccd.shape[1]), plot_width=1000, plot_height=600)
-            p.image(image=[diff_ccd], x=0, y=0, dw=diff_ccd.shape[0], dh=diff_ccd.shape[1], palette=colorcet.fire)
-            show(p)
+                diff_ccd = np.power(diff_ccd, (1 / 3))
+                im = Image.fromarray(diff_ccd)
+                im.save()
+                #p = figure(x_range=(0, diff_ccd.shape[0]), y_range=(0, diff_ccd.shape[1]), plot_width=1000, plot_height=600)
+                #p.image(image=[diff_ccd], x=0, y=0, dw=diff_ccd.shape[0], dh=diff_ccd.shape[1])
+                #show(p)
+            self.prev_sweep_data_lock.release()
 cap = AvmuCapture()
 cap.initialize()
-producerThread = Thread(target=cap.capture())
-consumerThread = Thread(target=cap.generate_image())
+producerThread = Thread(target=cap.capture)
+print("Initializing")
+consumerThread = Thread(target=cap.generate_image)
+producerThread.start()
+consumerThread.start()
 producerThread.join()
 consumerThread.join()
