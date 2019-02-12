@@ -286,7 +286,7 @@ def run():
 
     frequencies, sweeps, time_per_frame = get_sweeps(SWEEP_COUNT)
 
-    dirname = datetime.now().strftime("%Y-%m-%d %H-%M-%S")
+    dirname = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     os.makedirs(os.path.join(os.path.dirname(__file__), dirname), exist_ok=True)
 
@@ -302,7 +302,7 @@ def run():
             meta = row[0][1]['meta']
             writer.writerow([data, meta])
 
-    plot_sweeps(frequencies, sweeps, time_per_frame)
+    # plot_sweeps(frequencies, sweeps, time_per_frame)
 
 
 if __name__ == '__main__':
